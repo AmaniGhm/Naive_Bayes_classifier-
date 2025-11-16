@@ -1,7 +1,8 @@
 
 import numpy as np
+import pandas as pd
+from ucimlrepo import fetch_ucirepo
 from collections import defaultdict, Counter
-# import random
 from sklearn.model_selection import train_test_split
 
 from ucimlrepo import fetch_ucirepo 
@@ -124,7 +125,15 @@ class Nbayes:
             # Multiply likelihoods
             for j in range(len(X_test)):
                 value = X_test[j]
-                posterior *= self.cond_probs[(j, value, c)] 
+                
+                # Handle missing values
+                if value not in self.feature_values[j]:
+                    # Choose uniform probability or ignore the feature
+                    prob = 1 / len(self.feature_values[j])
+                else:
+                    prob = self.cond_probs[(j, value, c)]
+
+                posterior *= prob 
                 
             posteriors[c] = posterior
         
@@ -138,28 +147,41 @@ class Nbayes:
         return (np.array(y_test) == np.array(y_predict)).sum() / len(y_test)
 
 # --- Load the dataset ---
-data_file = "weather.data"
 
-X = []
-y = []
+# WEATHER DATASET 
+# data_file = "weather.data"
 
-with open(data_file, "r") as f:
-    lines = f.readlines()
-    for line in lines:
-        line = line.strip()
-        if line.startswith("#") or line == "":
-            continue  # skip comments and empty lines
-        parts = line.split()
-        X.append(parts[:-1])  # all columns except last
-        y.append(parts[-1])   # last column is the label
+# X = []
+# y = []
 
+# with open(data_file, "r") as f:
+#     lines = f.readlines()
+#     for line in lines:
+#         line = line.strip()
+#         if line.startswith("#") or line == "":
+#             continue  # skip comments and empty lines
+#         parts = line.split()
+#         X.append(parts[:-1])  # all columns except last
+#         y.append(parts[-1])   # last column is the label
+
+# BREAST CANCER DATASET
+breast_cancer = fetch_ucirepo(id=14)
+
+X = breast_cancer.data.features
+y = breast_cancer.data.targets.iloc[:, 0]   # convert to 1D array
+
+# --- Fix missing values using mode ---
+X = X.fillna(X.mode().iloc[0])
+
+# Convert to numpy arrays for the classifier
 X = np.array(X)
 y = np.array(y)
+
 
 # --- Split dataset into training and testing sets ---
 # test_size = 0.3 means 30% of the data is used for testing
 X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.3, random_state=50, shuffle=True
+    X, y, test_size=0.45, random_state=42, shuffle=True
 )
 
 # --- Train the classifier ---
@@ -178,7 +200,3 @@ y_pred = np.array(y_pred)
 # --- Calculate accuracy ---
 accuracy = (y_pred == y_test).sum() / len(y_test)
 print(f"Accuracy on the test data: {accuracy*100:.2f}%")
-
-# Optional: see predictions vs true labels
-for i in range(len(X_test)):
-    print(f"Sample: {X_test[i]}, Actual: {y_test[i]}, Predicted: {y_pred[i]}")
